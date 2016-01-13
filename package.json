@@ -1,0 +1,22 @@
+{
+  "name": "loopback-connector-sql-tds",
+  "version": "0.0.1",
+  "description": "A connector for connecting the loopback-datasource-juggler to Microsoft SQL database systems by using the 'tedious' js module.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+  },
+  "dependencies": {
+    "debug": "^2.2.0",
+    "loopback-connector": "^2.3.0",
+    "tedious": "^1.13.2"
+  }
+}

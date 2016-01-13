@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "module": "commonjs",
+        "sourceMap": true,
+        "moduleResolution": "node"
+    },
+    "files": [
+            "index.ts",
+            "lib/index.ts",
+            "lib/QueryBuilder.ts",
+            "lib/SqlTdsConnector.ts",
+            "lib/SqlTdsPlugin.ts",
+            
+            "typings/tedious/tedious.d.ts",
+            "typings/node/node.d.ts",
+            "typings/loopback-connector/loopback-connector.d.ts"
+    ]
+}
