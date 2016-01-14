@@ -5,7 +5,7 @@ var debug_log = require('debug')(DEBUG_ID);
 
 export class SqlTdsPlugin
 {
-    static debug(dataSource, flag: DebugFlags, message: string, ...args: any[]): void
+    static debug(dataSource, flag: number, message: string, ...args: any[]): void
     {
         if (!debugOption(dataSource.settings.options, flag))
             return;

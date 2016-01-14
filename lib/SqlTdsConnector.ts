@@ -26,7 +26,7 @@ export class SqlTdsConnector extends SqlConnector
         super(name, settings);
     }
         
-    debug(flag: DebugFlags, message: string, ...args: any[]): void
+    debug(flag: number, message: string, ...args: any[]): void
     {
         if (!debugOption(this.settings.options, flag))
             return;
@@ -61,10 +61,17 @@ export class SqlTdsConnector extends SqlConnector
         config.options.database = this.settings.database;
         
         this.pool = new ConnectionPool(poolConfig, config);        
-        this.pool.on('error', (err) =>
+        this.pool.on('error', err =>
         {
             this.debug(DebugFlags.Pool, "Connection-Pool-Error", err);
         });
+        
+        this.pool.on('new-connection', pool_con => 
+        {
+            pool_con.on('infoMessage', info => this.debug(DebugFlags.TDSInfo, info));
+            pool_con.on('errorMessage', err => this.debug(DebugFlags.TDSError, err));
+            pool_con.on('debug', msg => this.debug(DebugFlags.TDSDebug, msg));
+        })
         
         cb(null, this.pool);
         this.debug(DebugFlags.General, 'Connection established to: ', this.settings.host);
@@ -225,10 +232,10 @@ export class SqlTdsConnector extends SqlConnector
                 this.debug(DebugFlags.Pool, "Pool-Acquire-Error", err);
               
             // TODO: move to connection creation  
-            connection.on('infoMessage', info => self.debug(DebugFlags.TDSInfo, info));
-            connection.on('errorMessage', err => self.debug(DebugFlags.TDSError, err));
-            connection.on('debug', err => self.debug(DebugFlags.TDSDebug, err));
-            //connection.on('end', );
+            // connection.on('infoMessage', info => self.debug(DebugFlags.TDSInfo, info));
+            // connection.on('errorMessage', err => self.debug(DebugFlags.TDSError, err));
+            // connection.on('debug', err => self.debug(DebugFlags.TDSDebug, err));
+            //connection.on('end', () => connection.removeAllListeners());
 
             //use the connection as normal
             var request = new Request(sql, (err, count) => 
@@ -245,7 +252,7 @@ export class SqlTdsConnector extends SqlConnector
                 connection.release();
                 
                 // TODO: move to pool shutdown / connection drain
-                connection.removeAllListeners();
+                //connection.removeAllListeners();
             });
 
             request.on('columnMetadata', (meta_data) => 
