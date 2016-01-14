@@ -12,8 +12,9 @@
             "lib/SqlTdsConnector.ts",
             "lib/SqlTdsPlugin.ts",
             
-            "typings/tedious/tedious.d.ts",
             "typings/node/node.d.ts",
+            "typings/tedious/tedious.d.ts",
+            "typings/tedious-connection-pool/tedious-connection-pool.d.ts",
             "typings/loopback-connector/loopback-connector.d.ts"
     ]
 }

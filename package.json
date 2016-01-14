@@ -12,11 +12,11 @@
   },
   "author": "",
   "license": "MIT",
-  "devDependencies": {
-  },
+  "devDependencies": {},
   "dependencies": {
     "debug": "^2.2.0",
     "loopback-connector": "^2.3.0",
-    "tedious": "^1.13.2"
+    "tedious": "^1.13.2",
+    "tedious-connection-pool": "^0.3.9"
   }
 }

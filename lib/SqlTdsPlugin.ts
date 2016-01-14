@@ -1,14 +1,22 @@
 import { SqlTdsConnector } from './SqlTdsConnector';
-import { DEBUG_ID } from './Constants';
+import { DebugFlags, debugOption, DEBUG_ID } from './SqlTdsDebug';
 
-var debug = require('debug')(DEBUG_ID);
+var debug_log = require('debug')(DEBUG_ID);
 
 export class SqlTdsPlugin
 {
+    static debug(dataSource, flag: DebugFlags, message: string, ...args: any[]): void
+    {
+        if (!debugOption(dataSource.settings.options, flag))
+            return;
+            
+        debug_log(message, ...args);
+    }
+    
     static initialize(dataSource, callback):void
     {
         var settings = dataSource.settings || {};
-        debug('Settings: %j', settings);
+        SqlTdsPlugin.debug(dataSource, DebugFlags.General, 'Settings: %j', settings);
 
         var connector = new SqlTdsConnector(settings);
         dataSource.connector = connector;

@@ -27,6 +27,18 @@ declare module 'loopback-connector'
         
         serializeObject(obj: Object): any;
         
+        /**
+         * Execute a SQL statement with given parameters.
+         *
+        * @param {String} sql The SQL statement
+        * @param {*[]} [params] An array of parameter values
+        * @param {Object} [options] Options object
+        * @param {Function} [callback] The callback function
+        */
+        execute(sql: string, callback: Function);
+        execute(sql: string, params: any[], callback: Function);
+        execute(sql: string, params: any[], options: Object, callback: Function);
+        
         schema(model_name: string): string;
         table(model_name: string): string;
         column(model_name: string, property_name: string): string;

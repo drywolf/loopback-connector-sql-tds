@@ -1,10 +1,13 @@
-import { Connection, Request } from 'tedious';
-import { ConnectionConfig } from 'tedious';
-import { SqlConnector, ParameterizedSQL, PropertyDefinition } from 'loopback-connector';
-import { SqlQueryBuilder } from './QueryBuilder';
-import { DEBUG_ID } from './Constants';
+import { Connection, Request, ConnectionConfig } from 'tedious';
+import ConnectionPool = require('tedious-connection-pool');
+import { PoolConfig } from 'tedious-connection-pool';
 
-var debug = require('debug')(DEBUG_ID);
+import { SqlConnector, ParameterizedSQL, PropertyDefinition } from 'loopback-connector';
+
+import { SqlQueryBuilder } from './QueryBuilder';
+import { DebugFlags, debugOption, DEBUG_ID } from './SqlTdsDebug';
+
+var debug_log = require('debug')(DEBUG_ID);
 
 export class ConnectorSettings
 {
@@ -15,35 +18,31 @@ export const name: string = 'tds-sql';
 
 export class SqlTdsConnector extends SqlConnector
 {
-    connection: Connection;
+    pool: ConnectionPool;
+    //connection: Connection;
     
     constructor(settings: ConnectorSettings)
     {
         super(name, settings);
     }
-    
-    tdsInfo(info): void
-    {
-        //debug('INFO: ', info);
-    }
-    
-    tdsError(err): void
-    {
-        //debug('ERROR: ', err);
-    }
-    
-    tdsEnd(): void
-    {
         
+    debug(flag: DebugFlags, message: string, ...args: any[]): void
+    {
+        if (!debugOption(this.settings.options, flag))
+            return;
+            
+        debug_log(message, ...args);
     }
     
-    tdsDebug(message: string): void
-    {
-        //debug('DEBUG: ', message);
-    }
-
     connect(cb): void
     {
+        var poolConfig: PoolConfig = 
+        {
+            min: 2,
+            max: 4,
+            log: (message) => this.debug(DebugFlags.Pool, message)
+        };
+        
         var config:ConnectionConfig = {};
         config.options = {};
         
@@ -57,11 +56,20 @@ export class SqlTdsConnector extends SqlConnector
         config.server = this.settings.host || this.settings.hostname;
         config.userName = this.settings.user || this.settings.username;
         config.password = this.settings.password;
-        
+                
         // db options
         config.options.database = this.settings.database;
         
-        var connection = new Connection(config);
+        this.pool = new ConnectionPool(poolConfig, config);        
+        this.pool.on('error', (err) =>
+        {
+            this.debug(DebugFlags.Pool, "Connection-Pool-Error", err);
+        });
+        
+        cb(null, this.pool);
+        this.debug(DebugFlags.General, 'Connection established to: ', this.settings.host);
+        
+        /*var connection = new Connection(config);
         
         connection.on('infoMessage', this.tdsInfo);
         connection.on('errorMessage', this.tdsError);
@@ -72,6 +80,7 @@ export class SqlTdsConnector extends SqlConnector
         {
             if (err)
             {
+                debug('Connection Error: ', err);
                 cb(err, null);
             }
             else
@@ -80,30 +89,26 @@ export class SqlTdsConnector extends SqlConnector
                 this.connection = connection;
                 cb(err, connection);
             }
-        });
+        });*/
     }
 
     disconnect(cb): void
     {
-        if (this.connection)
+        if (this.pool)
         {
-            this.connection.close();
-            this.connection = null;
-        }
-
-        cb();
+            this.pool.drain(() => 
+            {
+                console.log("Pool drained");
+                cb();
+            });
+            
+            this.pool = null;
+        }        
     }
 
     ping(cb: Function): void
     {
-        debug('Ping');
-        //this.execute('SELECT 1 AS result', cb);
-        var request = new Request('SELECT 1 AS result', (err, count, rows) => 
-        {
-            cb();
-        });
-        
-        this.connection.execSql(request);
+        this.execute('SELECT 1 AS result', cb);
     }
 
     toColumnValue(propertyDef: PropertyDefinition, value: any): ParameterizedSQL | any
@@ -185,73 +190,84 @@ export class SqlTdsConnector extends SqlConnector
     
     getInsertedId(model: string, info)
     {
-        
+
     }
         
     executeSQL(sql: string, params: any[], options, callback: Function): void
     {
         var self = this;
-        var client = this.connection;
-        var debugEnabled = debug.enabled;
+
         var db = this.settings.database;
         
         if (typeof callback !== 'function')
             throw new Error('callback should be a function');
 
-        if (debugEnabled)
-            debug('SQL: %s, params: %j', sql, params);
+        this.debug(DebugFlags.SQL, 'SQL: %s, params: %j', sql, params);
 
         if (Array.isArray(params) && params.length > 0)
         {
             sql = SqlQueryBuilder.formatSqlParams(sql, params, this);
-            debug('Formatted SQL: %s', sql);
+            this.debug(DebugFlags.SQL, 'Formatted SQL: %s', sql);
         }
                 
-        var transaction = options.transaction;
+        /*var transaction = options.transaction;
         if (transaction && transaction.connector === this && transaction.connection)
         {
             debug('Execute SQL in a transaction');
             client = transaction.connection;
-        }
+        }*/
         
         var result: any[];
                 
-        var request = new Request(sql, (err, count) => 
+        this.pool.acquire(function (err, connection)
         {
             if (err)
-                callback && callback(err, null);
-        });
-        
-        /*request.on('columnMetadata', this.onColumnMetadata);
-        request.on('row', this.onRequestData);
-        request.on('done', this.onRequestDone);
-        request.on('doneProc', this.onRequestDoneProc);
-        request.on('doneInProc', this.onRequestDoneInProc);*/
-        
-        request.on('columnMetadata', (meta_data) => 
-        {
-            result = [];
-        });
-        
-        request.on('row', (columns) => 
-        {
-            var obj = {};
+                this.debug(DebugFlags.Pool, "Pool-Acquire-Error", err);
+              
+            // TODO: move to connection creation  
+            connection.on('infoMessage', info => self.debug(DebugFlags.TDSInfo, info));
+            connection.on('errorMessage', err => self.debug(DebugFlags.TDSError, err));
+            connection.on('debug', err => self.debug(DebugFlags.TDSDebug, err));
+            //connection.on('end', );
 
-            columns.forEach((column) => 
+            //use the connection as normal
+            var request = new Request(sql, (err, count) => 
             {
-                if (column.metadata && column.metadata.colName)
-                    obj[column.metadata.colName] = column.value;
+                if (err)
+                {
+                    self.debug(DebugFlags.General, "Request-Error", err);
+                    callback && callback(err, undefined);
+                }
+                else
+                    callback && callback(undefined, result);
+                
+                //release the connection back to the pool when finished
+                connection.release();
+                
+                // TODO: move to pool shutdown / connection drain
+                connection.removeAllListeners();
             });
 
-            result.push(obj);
+            request.on('columnMetadata', (meta_data) => 
+            {
+                result = [];
+            });
+            
+            request.on('row', (columns) => 
+            {
+                var obj = {};
+
+                columns.forEach((column) => 
+                {
+                    if (column.metadata && column.metadata.colName)
+                        obj[column.metadata.colName] = column.value;
+                });
+
+                result.push(obj);
+            });
+
+            connection.execSql(request);
         });
-        
-        request.on('doneInProc', (rowCount, more) => 
-        {
-            callback && callback(null, result);
-        });
-        
-        client.execSql(request);
     }
     
     /// @override
